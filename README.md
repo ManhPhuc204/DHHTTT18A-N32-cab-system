@@ -219,7 +219,7 @@ This project serves as a comprehensive **System Design Document** suitable for:
 1. **Clone the repository**
    ```bash
    git clone https://github.com/ManhPhuc204/CabBookingSystemN32.git
-   cd CabBookingSystemN32
+   cd Cab-BookingSystem
    ```
 
 2. **Install dependencies for each service**
@@ -547,3 +547,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 
 </div>
+

@@ -1,96 +1,37 @@
-const mongoose = require('mongoose');
-const Review = require('../models/review.model');
+const Review = require('../models/review.model.js');
 
-// @desc    Create a new review
-// @route   POST /api/reviews
-// @access  Private
-const createReview = async(req, res) => {
+// Create a new review
+exports.createReview = async(req, res) => {
     try {
         const { bookingId, userId, driverId, rating, comment } = req.body;
 
-        // Check if a review for this booking already exists
-        const existingReview = await Review.findOne({ bookingId });
-        if (existingReview) {
-            return res.status(400).json({ success: false, message: 'A review for this booking already exists.' });
+        // Basic validation
+        if (!bookingId || !userId || !driverId || !rating) {
+            return res.status(400).json({ message: 'Missing required fields.' });
         }
 
-        const review = new Review({
+        const newReview = new Review({
             bookingId,
-            userId,
-            driverId,
+            user: userId,
+            driver: driverId,
             rating,
-            comment,
+            comment
         });
 
-        const createdReview = await review.save();
-        res.status(201).json({ success: true, data: createdReview });
+        const savedReview = await newReview.save();
+        res.status(201).json(savedReview);
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+        res.status(500).json({ message: 'Error creating review', error: error.message });
     }
 };
 
-// @desc    Get all reviews for a specific driver
-// @route   GET /api/reviews/driver/:driverId
-// @access  Public
-const getReviewsByDriver = async(req, res) => {
-    try {
-        const reviews = await Review.find({ driverId: req.params.driverId }).populate('userId', 'name');
-        if (!reviews) {
-            return res.status(404).json({ success: false, message: 'No reviews found for this driver.' });
-        }
-        res.status(200).json({ success: true, count: reviews.length, data: reviews });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
-    }
-};
-
-// @desc    Get all reviews written by a specific user
-// @route   GET /api/reviews/user/:userId
-// @access  Public
-const getReviewsByUser = async(req, res) => {
-    try {
-        const reviews = await Review.find({ userId: req.params.userId }).populate('driverId', 'name');
-        if (!reviews) {
-            return res.status(404).json({ success: false, message: 'No reviews found from this user.' });
-        }
-        res.status(200).json({ success: true, count: reviews.length, data: reviews });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
-    }
-};
-
-// @desc    Get average rating for a specific driver
-// @route   GET /api/reviews/driver/:driverId/average-rating
-// @access  Public
-const getAverageRatingByDriver = async(req, res) => {
+// Get all reviews for a specific driver
+exports.getDriverReviews = async(req, res) => {
     try {
         const { driverId } = req.params;
-        const stats = await Review.aggregate([{
-                $match: { driverId: mongoose.Types.ObjectId(driverId) }
-            },
-            {
-                $group: {
-                    _id: '$driverId',
-                    averageRating: { $avg: '$rating' },
-                    totalReviews: { $sum: 1 }
-                }
-            }
-        ]);
-
-        if (stats.length > 0) {
-            res.status(200).json({ success: true, data: stats[0] });
-        } else {
-            res.status(404).json({ success: false, message: 'No ratings found for this driver, cannot calculate average.' });
-        }
+        const reviews = await Review.find({ driver: driverId }).populate('user', 'name'); // Populate user's name
+        res.status(200).json(reviews);
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Server Error', error: error.message });
+        res.status(500).json({ message: 'Error fetching reviews', error: error.message });
     }
-};
-
-
-module.exports = {
-    createReview,
-    getReviewsByDriver,
-    getReviewsByUser,
-    getAverageRatingByDriver,
 };

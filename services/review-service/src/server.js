@@ -1,5 +1,9 @@
 const express = require('express');
-const connectDB = require('./config/database');
+const dotenv = require('dotenv');
+const connectDB = require('./config/database.js');
+const reviewRoutes = require('./routes/review.route.js');
+
+dotenv.config();
 
 // Connect to MongoDB
 connectDB();
@@ -9,16 +13,16 @@ const app = express();
 // Middleware
 app.use(express.json());
 
-// API Routes
-const reviewRoutes = require('./routes/review.routes');
-app.use('/api/reviews', reviewRoutes);
-
-app.get('/', (req, res) => {
-    res.send('Review service is running');
+// Health check
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', service: 'review-service' });
 });
+
+// API Routes
+app.use('/api/reviews', reviewRoutes);
 
 const PORT = process.env.PORT || 3008;
 
 app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+    console.log(`Review service is running on port ${PORT}`);
 });

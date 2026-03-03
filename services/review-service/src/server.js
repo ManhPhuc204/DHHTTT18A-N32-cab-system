@@ -9,6 +9,10 @@ const app = express();
 // Middleware
 app.use(express.json());
 
+// API Routes
+const reviewRoutes = require('./routes/review.routes');
+app.use('/api/reviews', reviewRoutes);
+
 app.get('/', (req, res) => {
     res.send('Review service is running');
 });

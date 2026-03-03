@@ -1,23 +1,44 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import { createPool } from './config/database.js';
+import dotenv from "dotenv";
+import express from "express";
+import helmet from "helmet";
+import morgan from "morgan";
+import { createPool } from "./config/database.js";
+import { paymentRouter } from "./routes/payment.route.js";
+import { ensurePaymentTable } from "./models/payment.js";
 
 dotenv.config();
 
-// Initialize Database Pool
-createPool();
-
 const app = express();
 
-// Middleware
+app.use(helmet());
 app.use(express.json());
-
-app.get('/', (req, res) => {
-    res.send('Payment service is running with PostgreSQL!');
-});
+app.use(morgan('dev'));
 
 const PORT = process.env.PORT || 3007;
+const pool = createPool();
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+app.use((req, _res, next) => {
+    req.db = pool;
+    next();
 });
+
+app.get("/health", (_req, res) => {
+    res.json({ status: "ok", service: "payment-service" });
+});
+
+app.use("/api/payments", paymentRouter);
+
+const startServer = async() => {
+    try {
+        await ensurePaymentTable(pool);
+        console.log('"payments" table checked/created successfully.');
+        app.listen(PORT, () => {
+            console.log(`Payment service listening on port ${PORT}`);
+        });
+    } catch (error) {
+        console.error("Failed to start server:", error);
+        process.exit(1);
+    }
+};
+
+startServer();

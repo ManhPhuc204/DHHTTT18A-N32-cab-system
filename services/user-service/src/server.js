@@ -2,9 +2,15 @@ import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
-import { createPool } from "./config/database.js";
-import { userRouter } from "./routes/users.js";
-import { ensureUserTable } from "./models/user.js";
+import {
+    createPool
+} from "./config/database.js";
+import {
+    userRouter
+} from "./routes/users.js";
+import {
+    ensureUserTable
+} from "./models/user.js";
 
 dotenv.config();
 
@@ -28,26 +34,28 @@ app.use((req, _res, next) => {
 
 // Health check endpoint
 app.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "user-service" });
+    res.json({
+        status: "ok",
+        service: "user-service"
+    });
 });
 
 // API routes
 app.use("/api/users", userRouter);
 
 // Start server function
-const startServer = async() => {
+const startServer = async () => {
     try {
-        // Ensure database table exists before starting the server
+        // Ensure database table exists before starting the server.
         await ensureUserTable(pool);
         console.log('"users" table checked/created successfully.');
-
-        app.listen(PORT, () => {
-            console.log(`User service listening on port ${PORT}`);
-        });
     } catch (error) {
-        console.error("Failed to start server:", error);
-        process.exit(1);
+        console.error("Database initialization failed, starting server anyway:", error);
     }
+
+    app.listen(PORT, () => {
+        console.log(`User service listening on port ${PORT}`);
+    });
 };
 
 startServer();

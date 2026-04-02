@@ -1,62 +1,100 @@
-import { userRepository } from '../repositories/user.repository.js';
+const userService = require('../services/user.service');
+const { sendSuccess } = require('../utils/response');
+const AppError = require('../utils/app-error');
 
-class UserController {
-    async getUserProfile(req, res) {
-        const userId = req.header('x-user-id'); // To be replaced by auth middleware
-        if (!userId) {
-            return res.status(400).json({ error: 'x-user-id header is required' });
-        }
+function resolveProfileSelector(req) {
+  const accountRef = req.query.accountRef || req.headers['x-account-ref'] || null;
+  const id = req.query.id || req.headers['x-user-id'] || null;
 
-        try {
-            const user = await userRepository.findById(req.db, userId);
-            if (!user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            return res.json(user);
-        } catch (err) {
-            console.error('Error fetching profile', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
+  if (!accountRef && !id) {
+    throw new AppError(
+      'profile selector is required: provide accountRef (query/header) or id (query/header)',
+      400,
+      'PROFILE_SELECTOR_REQUIRED'
+    );
+  }
 
-    async updateUserProfile(req, res) {
-        const userId = req.header('x-user-id'); // To be replaced by auth middleware
-        if (!userId) {
-            return res.status(400).json({ error: 'x-user-id header is required' });
-        }
-
-        const { name, phone } = req.body || {};
-        if (!name && !phone) {
-            return res.status(400).json({ error: 'At least one of name or phone must be provided' });
-        }
-
-        try {
-            const updatedUser = await userRepository.update(req.db, userId, { name, phone });
-            if (!updatedUser) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            return res.json(updatedUser);
-        } catch (err) {
-            console.error('Error updating profile', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
-
-    async getUserById(req, res) {
-        const { id } = req.params;
-        try {
-            const user = await userRepository.findPublicById(req.db, id);
-            if (!user) {
-                return res.status(404).json({ error: 'User not found' });
-            }
-            return res.json(user);
-        } catch (err) {
-            console.error('Error fetching user', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
-
-    // We will add register, login controllers here later
+  return { accountRef, id };
 }
 
-export const userController = new UserController();
+async function createProfile(req, res, next) {
+  try {
+    const profile = await userService.createProfile(req.body);
+    return sendSuccess(res, 201, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getProfileById(req, res, next) {
+  try {
+    const profile = await userService.getProfileById(req.params.id);
+    return sendSuccess(res, 200, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getProfileByAccountRef(req, res, next) {
+  try {
+    const profile = await userService.getProfileByAccountRef(req.params.accountRef);
+    return sendSuccess(res, 200, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getCurrentProfile(req, res, next) {
+  try {
+    const selector = resolveProfileSelector(req);
+    const profile = selector.accountRef
+      ? await userService.getProfileByAccountRef(selector.accountRef)
+      : await userService.getProfileById(selector.id);
+
+    return sendSuccess(res, 200, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateProfile(req, res, next) {
+  try {
+    const profile = await userService.updateProfile(req.params.id, req.body);
+    return sendSuccess(res, 200, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateCurrentProfile(req, res, next) {
+  try {
+    const selector = resolveProfileSelector(req);
+    const targetProfile = selector.accountRef
+      ? await userService.getProfileByAccountRef(selector.accountRef)
+      : await userService.getProfileById(selector.id);
+
+    const profile = await userService.updateProfile(targetProfile.id, req.body);
+    return sendSuccess(res, 200, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function deactivateProfile(req, res, next) {
+  try {
+    const profile = await userService.deactivateProfile(req.params.id);
+    return sendSuccess(res, 200, profile);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = {
+  createProfile,
+  getProfileById,
+  getProfileByAccountRef,
+  getCurrentProfile,
+  updateProfile,
+  updateCurrentProfile,
+  deactivateProfile
+};

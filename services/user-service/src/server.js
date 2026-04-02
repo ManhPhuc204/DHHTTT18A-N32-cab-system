@@ -1,61 +1,37 @@
-import dotenv from "dotenv";
-import express from "express";
-import helmet from "helmet";
-import morgan from "morgan";
-import {
-    createPool
-} from "./config/database.js";
-import {
-    userRouter
-} from "./routes/users.js";
-import {
-    ensureUserTable
-} from "./models/user.js";
+require('dotenv').config();
+const app = require('./app');
+const { connectDatabase, initSchema, closeDatabase } = require('./config/database');
+const { startUserConsumers } = require('./events/user.consumer');
 
-dotenv.config();
+const port = Number(process.env.PORT || 3002);
 
-const app = express();
+let server;
 
-// Middlewares
-app.use(helmet()); // Basic security headers
-app.use(express.json());
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev")); // Logging
+async function bootstrap() {
+  await connectDatabase();
+  await initSchema();
+  startUserConsumers();
 
-const PORT = process.env.PORT || 3002;
+  server = app.listen(port, () => {
+    console.info(`[user-service] listening on port ${port}`);
+  });
+}
 
-// Database initialization
-const pool = createPool();
+async function shutdown(signal) {
+  console.info(`[user-service] received ${signal}, shutting down...`);
 
-// Attach DB pool to all requests for easy access in controllers/repositories
-app.use((req, _res, next) => {
-    req.db = pool;
-    next();
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  await closeDatabase();
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+bootstrap().catch((error) => {
+  console.error('[user-service] failed to start:', error);
+  process.exit(1);
 });
-
-// Health check endpoint
-app.get("/health", (_req, res) => {
-    res.json({
-        status: "ok",
-        service: "user-service"
-    });
-});
-
-// API routes
-app.use("/api/users", userRouter);
-
-// Start server function
-const startServer = async () => {
-    try {
-        // Ensure database table exists before starting the server.
-        await ensureUserTable(pool);
-        console.log('"users" table checked/created successfully.');
-    } catch (error) {
-        console.error("Database initialization failed, starting server anyway:", error);
-    }
-
-    app.listen(PORT, () => {
-        console.log(`User service listening on port ${PORT}`);
-    });
-};
-
-startServer();

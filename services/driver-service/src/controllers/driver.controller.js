@@ -1,87 +1,121 @@
-import { driverRepository } from '../repositories/driver.repository.js';
+const driverService = require('../services/driver.service');
+const { sendSuccess } = require('../utils/response');
+const AppError = require('../utils/app-error');
 
-class DriverController {
-    async getDriverProfile(req, res) {
-        const driverId = req.header('x-driver-id'); // To be replaced by auth
-        if (!driverId) {
-            return res.status(400).json({ error: 'x-driver-id header is required' });
-        }
+function resolveDriverId(req) {
+  const driverId = req.query.driverId || req.query.id || req.body.driverId || req.headers['x-driver-id'] || null;
+  if (!driverId) {
+    throw new AppError('driverId is required', 400, 'DRIVER_ID_REQUIRED');
+  }
 
-        try {
-            const driver = await driverRepository.findById(req.db, driverId);
-            if (!driver) {
-                return res.status(404).json({ error: 'Driver not found' });
-            }
-            return res.json(driver);
-        } catch (err) {
-            console.error('Error fetching driver profile', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
-
-    async updateDriverStatus(req, res) {
-        const driverId = req.header('x-driver-id'); // To be replaced by auth
-        const { status } = req.body || {};
-
-        if (!driverId) {
-            return res.status(400).json({ error: 'x-driver-id header is required' });
-        }
-        if (!['available', 'offline', 'on_trip'].includes(status)) {
-            return res.status(400).json({ error: "status must be one of 'available', 'offline', 'on_trip'" });
-        }
-
-        try {
-            const updatedDriver = await driverRepository.updateStatus(req.db, driverId, status);
-            if (!updatedDriver) {
-                return res.status(404).json({ error: 'Driver not found' });
-            }
-            return res.json(updatedDriver);
-        } catch (err) {
-            console.error('Error updating driver status', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
-
-    async updateDriverLocation(req, res) {
-        const driverId = req.header('x-driver-id'); // To be replaced by auth
-        const { latitude, longitude } = req.body || {};
-
-        if (!driverId) {
-            return res.status(400).json({ error: 'x-driver-id header is required' });
-        }
-        if (typeof latitude !== 'number' || typeof longitude !== 'number') {
-            return res.status(400).json({ error: 'latitude and longitude must be valid numbers' });
-        }
-
-        try {
-            const updatedDriver = await driverRepository.updateLocation(req.db, driverId, { latitude, longitude });
-            if (!updatedDriver) {
-                return res.status(404).json({ error: 'Driver not found' });
-            }
-            return res.json(updatedDriver);
-        } catch (err) {
-            console.error('Error updating driver location', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
-
-    async findNearbyDrivers(req, res) {
-        const lat = Number(req.query.lat);
-        const lng = Number(req.query.lng);
-        const radiusKm = Number(req.query.radiusKm || 5);
-
-        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-            return res.status(400).json({ error: 'lat and lng query params are required and must be numbers' });
-        }
-
-        try {
-            const drivers = await driverRepository.findNearby(req.db, { lat, lng, radiusKm });
-            return res.json({ drivers });
-        } catch (err) {
-            console.error('Error fetching nearby drivers', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-    }
+  return driverId;
 }
 
-export const driverController = new DriverController();
+async function createDriver(req, res, next) {
+  try {
+    const data = await driverService.createDriver(req.body);
+    return sendSuccess(res, 201, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getDriverById(req, res, next) {
+  try {
+    const data = await driverService.getDriverById(req.params.id);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateDriver(req, res, next) {
+  try {
+    const data = await driverService.updateDriver(req.params.id, req.body);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateAvailability(req, res, next) {
+  try {
+    const data = await driverService.updateAvailability(req.params.id, req.body.availabilityStatus);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getAvailability(req, res, next) {
+  try {
+    const data = await driverService.getAvailability(req.params.id);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listAvailableDrivers(req, res, next) {
+  try {
+    const data = await driverService.listAvailableDrivers(req.query);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function getDriverProfile(req, res, next) {
+  try {
+    const driverId = resolveDriverId(req);
+    const data = await driverService.getDriverById(driverId);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateDriverStatus(req, res, next) {
+  try {
+    const driverId = resolveDriverId(req);
+    const status = req.body.status || req.body.availabilityStatus;
+    const data = await driverService.updateAvailability(driverId, status);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function updateDriverLocation(req, res, next) {
+  try {
+    const driverId = resolveDriverId(req);
+    const latitude = req.body.latitude;
+    const longitude = req.body.longitude;
+    const data = await driverService.updateDriverLocation(driverId, latitude, longitude);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+async function listNearbyDrivers(req, res, next) {
+  try {
+    const data = await driverService.listNearbyDrivers(req.query);
+    return sendSuccess(res, 200, data);
+  } catch (error) {
+    return next(error);
+  }
+}
+
+module.exports = {
+  createDriver,
+  getDriverById,
+  updateDriver,
+  updateAvailability,
+  getAvailability,
+  listAvailableDrivers,
+  getDriverProfile,
+  updateDriverStatus,
+  updateDriverLocation,
+  listNearbyDrivers
+};

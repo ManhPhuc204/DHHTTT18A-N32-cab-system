@@ -1,51 +1,37 @@
-import dotenv from "dotenv";
-import express from "express";
-import helmet from "helmet";
-import morgan from "morgan";
-import { createPool } from "./config/database.js";
-import { driverRouter } from "./routes/drivers.js";
-import { ensureDriverTable } from "./models/driver.js";
+require('dotenv').config();
+const app = require('./app');
+const { connectDatabase, initSchema, closeDatabase } = require('./config/database');
+const { startDriverConsumers } = require('./events/driver.consumer');
 
-dotenv.config();
+const port = Number(process.env.PORT || 3003);
 
-const app = express();
+let server;
 
-// Middlewares
-app.use(helmet());
-app.use(express.json());
-app.use(morgan(process.env.NODE_ENV === "production" ? "combined" : "dev"));
+async function bootstrap() {
+  await connectDatabase();
+  await initSchema();
+  startDriverConsumers();
 
-const PORT = process.env.PORT || 3003;
+  server = app.listen(port, () => {
+    console.info(`[driver-service] listening on port ${port}`);
+  });
+}
 
-// Database initialization
-const pool = createPool();
+async function shutdown(signal) {
+  console.info(`[driver-service] received ${signal}, shutting down...`);
 
-// Attach DB pool to all requests
-app.use((req, _res, next) => {
-    req.db = pool;
-    next();
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  await closeDatabase();
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+bootstrap().catch((error) => {
+  console.error('[driver-service] failed to start:', error);
+  process.exit(1);
 });
-
-// Health check endpoint
-app.get("/health", (_req, res) => {
-    res.json({ status: "ok", service: "driver-service" });
-});
-
-// API routes
-app.use("/api/drivers", driverRouter);
-
-// Start server function
-const startServer = async() => {
-    try {
-        await ensureDriverTable(pool);
-        console.log('"drivers" table checked/created successfully.');
-    } catch (error) {
-        console.error("Database initialization failed, starting server anyway:", error);
-    }
-
-    app.listen(PORT, () => {
-        console.log(`Driver service listening on port ${PORT}`);
-    });
-};
-
-startServer();

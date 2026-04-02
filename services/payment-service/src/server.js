@@ -1,23 +1,37 @@
-import express from 'express';
-import dotenv from 'dotenv';
-import { createPool } from './config/database.js';
+require('dotenv').config();
+const app = require('./app');
+const { connectDatabase, initSchema, closeDatabase } = require('./config/database');
+const { startPaymentConsumers } = require('./events/payment.consumer');
 
-dotenv.config();
+const port = Number(process.env.PORT || 3007);
 
-// Initialize Database Pool
-createPool();
+let server;
 
-const app = express();
+async function bootstrap() {
+  await connectDatabase();
+  await initSchema();
+  startPaymentConsumers();
 
-// Middleware
-app.use(express.json());
+  server = app.listen(port, () => {
+    console.info(`[payment-service] listening on port ${port}`);
+  });
+}
 
-app.get('/', (req, res) => {
-    res.send('Payment service is running with PostgreSQL!');
-});
+async function shutdown(signal) {
+  console.info(`[payment-service] received ${signal}, shutting down...`);
 
-const PORT = process.env.PORT || 3007;
+  if (server) {
+    await new Promise((resolve) => server.close(resolve));
+  }
 
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  await closeDatabase();
+  process.exit(0);
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+
+bootstrap().catch((error) => {
+  console.error('[payment-service] failed to start:', error);
+  process.exit(1);
 });

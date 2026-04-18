@@ -24,3 +24,7 @@ exports.getBooking = async (id) => {
 exports.cancelBooking = async (id) => {
   return bookingRepo.updateStatus(id, "CANCELLED");
 };
+
+exports.updateStatus = async (id, status) => {
+  return bookingRepo.updateStatus(id, status);
+};

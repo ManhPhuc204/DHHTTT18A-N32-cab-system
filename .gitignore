@@ -100,3 +100,6 @@ lib-cov
 
 # Gatsby
 public
+
+# Exported environments
+_team_envs_export/
